@@ -18,53 +18,54 @@ class Tensor:
             assert type(data) == np.ndarray, "wrong input data type"
             self.data = data
 
-        # only if grad_tracked, but how to differentiate between leaf and rest?
-        if requires_grad:
-            self.grad = np.zeros(self.data.shape)
+        self.grad = np.zeros_like(self.data)
+        self.back_fn = back_fn
 
 
+
+    """
     # TODO
     @property
     def grad_tracked(self):
         pass
+    """
 
+    # TODO
     def sum(self) -> Tensor:
-        # This will be for grad to work (why needed?)
         pass
 
-    def backward(self, grad: Optional[bool]=None) -> None:
-        if self.back_fn is None: raise AttributeError("back function missing")
+    def backward(self, grad: Optional[Tensor]=None) -> None:
+        if grad is None:
+            # TODO: check for shape of data
+            grad = np.array([1])
+        if self.back_fn is None: # Tensor is leaf of computational graph -> save grad
+            # TODO @@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+            weight = np.zeros_like(self.grad)
+            self.grad += weight * grad
+            return
         if not self.back_fn.requires_grad: return
 
-        for parent in back_fn.parents:
+        for parent in self.back_fn.parents:
             if not parent.requires_grad: continue
-            # example: linear, then the units are one tensor and weights are another tensor. optimizer will track weight tensor so this will add grad to weights but only forward the gradient through the layer
-            if parent.grad_tracked:
-                parent.grad += back_fn.backward(grad)
-            parent.backward(grad)
-        pass
+            # REDO ~ this is wasting much memory - use toposort for that!
+            
+            # TODO @@@@@@@@@@@@@@@@@@@@@@@22
+            parent.grad += np.zeros_like(parent.grad)
+            # TODO: problem - long recursion for long calculations!
+            parent.backward(self.back_fn.backward(grad))
         
-    def dot(self, tensor: Tensor) -> Tensor: return self.__matmul__(tensor)
-        new_data = self.data @ rhs.data
-        requires_grad = self.requires_grad or rhs.requires_grad
-        # TODO change to use Function (Dot) forward
-        back_fn = Dot(self, rhs)
-        return Tensor(new_data, requires_grad=requires_grad, back_fn=back_fn)
-
-    def __add__(self, rhs: Tensor) -> Tensor:
-        requires_grad = self.requires_grad or rhs.requires_grad
-        new_data = self.data + rhs.data
-        return Tensor(new_data, requires_grad=True)#TODO, back_fn=...
-
+    # hlops
+    def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
+    def relu(self) -> Tensor: return Relu(self).apply()
+    def __add__(self, rhs: Tensor) -> Tensor: return Add(self, rhs).apply()
     def __matmul__(self, rhs: Tensor) -> Tensor: return self.dot(rhs)
 
-    def __str__(self): return f"Tensor({np.array2string(self.data)})"
+    def __str__(self): return f"Tensor({np.array2string(self.data)})\n"
 
 class Function:
-    # TODO
-    def __init__(self, *tensors: Sequence[Tensor]):
-        self.parents = tensors
-        self.requires_grad = any(tensor.requires_grad for tensor in tensors)
+    def __init__(self, tensor: Tensor, *tensors: Sequence[Tensor]):
+        self.parents = [tensor, *tensors]
+        self.requires_grad = any(parent.requires_grad for parent in self.parents)
 
     def forward(self):
         raise NotImplementedError(f"forward function of {type(self)} not implemented")
@@ -72,6 +73,21 @@ class Function:
     def backward(self):
         raise NotImplementedError(f"backward function of {type(self)} not implemented")
 
-    # TODO
     def apply(self):
-        pass
+        if not self.requires_grad: return
+        return Tensor(self.forward(*self.parents), requires_grad=self.requires_grad, back_fn=self)
+
+class Dot(Function):
+    def forward(self, lhs, rhs):
+        return lhs.data @ rhs.data
+
+    def backward(self, grad):
+        return self.parents[1].data.T * grad
+
+class Relu(Function):
+    def forward(self, tensor):
+        return np.maximum(0, tensor.data)
+    
+    def backward(self, grad):
+        data = self.parents[0].data
+        return np.maximum(np.sign(data), np.zeros_like(data))

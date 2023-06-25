@@ -1,9 +1,11 @@
+from tensor import Function
+
 class Dot(Function):
-    def forward(self, x):
-        pass
+    def forward(self, rhs):
+        return self.data @ rhs.data
 
     def backward(self):
-        pass
+        return self.parents[1].data.T
 
 class Relu(Function):
     def forward(self, x):
