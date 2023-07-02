@@ -30,9 +30,6 @@ class Tensor:
         pass
     """
 
-    # TODO
-    def sum(self) -> Tensor:
-        pass
 
     # TODO THIS IS THE CURRENT PROBLEM
     # REDO ~ this is using much more memory than it needs - use toposort for that!
@@ -47,18 +44,20 @@ class Tensor:
         if not self.back_fn.requires_grad: return
 
         # TODO use enum?
-        if self.back_fn.type == "unary":
+        if self.back_fn.type == "unary" or self.back_fn.type == "reduce":
             parent = self.back_fn.parents[0]
             grad = self.back_fn.backward(grad)
             parent.backward(grad)
         elif self.back_fn.type == "binary":
-            # TODO
-            pass
+            grad1, grad2 = self.back_fn.backward(grad)
+            self.back_fn.parents[0].backward(grad1)
+            self.back_fn.parents[1].backward(grad2)
 
         
     # hlops
     def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
     def relu(self) -> Tensor: return Relu(self).apply()
+    def sum(self) -> Tensor: return Sum(self).apply()
     def __add__(self, rhs: Tensor) -> Tensor: return Add(self, rhs).apply()
     def __matmul__(self, rhs: Tensor) -> Tensor: return self.dot(rhs)
 
@@ -88,8 +87,12 @@ class Dot(Function):
         return lhs.data @ rhs.data
 
     def backward(self, grad):
-        fst = self.parents[1].data.T * grad
-        print("@", self.parents[1].grad.size())
+         # TODO ~ wrong
+        print(self.parents[1].data.shape)
+        print(self.parents[0].data.shape)
+        print(grad.shape)
+        fst = self.parents[1].data * grad
+        scnd = self.parents[0].data.T * grad
         return (fst, scnd)
 
 class Relu(Function):
@@ -100,4 +103,13 @@ class Relu(Function):
     
     def backward(self, grad):
         data = self.parents[0].data
-        return np.maximum(np.sign(data), np.zeros_like(data))
+        return np.maximum(np.sign(data), np.zeros_like(data)) * grad
+
+class Sum(Function):
+    type = "reduce"
+
+    def forward(self, tensor):
+        return np.sum(tensor.data)
+
+    def backward(self, grad):
+        return np.ones_like(self.parents[0].data.shape) * grad
