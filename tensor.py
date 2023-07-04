@@ -4,7 +4,6 @@ import numpy as np
 
 
 class Tensor:
-    # cur IDEA: if you have a tensor and do some calculation, then a new tensor will be created with a backward_function that has the parent tensors and how the gradient of the function is calculated (~> NO in-place operations for Tensors with requires_grad=True)
     def __init__(self, data: Union[int, float, list, np.ndarray], requires_grad: Optional[bool]=None, back_fn: Function=None):
         self.requires_grad = requires_grad
 
@@ -30,16 +29,14 @@ class Tensor:
         pass
     """
 
-
-    # TODO THIS IS THE CURRENT PROBLEM
     # REDO ~ this is using much more memory than it needs - use toposort for that!
     def backward(self, grad: Optional[Tensor]=None) -> None:
         if grad is None:
             # TODO: check for shape of data
             grad = np.array([1])
-        self.grad = grad
+        self.grad += grad
         if self.back_fn is None: # Tensor is leaf of computational graph -> save grad
-            self.grad = grad
+            # TODO
             return
         if not self.back_fn.requires_grad: return
 
@@ -87,12 +84,8 @@ class Dot(Function):
         return lhs.data @ rhs.data
 
     def backward(self, grad):
-         # TODO ~ wrong
-        print(self.parents[1].data.shape)
-        print(self.parents[0].data.shape)
-        print(grad.shape)
-        fst = self.parents[1].data * grad
-        scnd = self.parents[0].data.T * grad
+        fst = grad @ self.parents[1].data.T
+        scnd = self.parents[0].data.T @ grad
         return (fst, scnd)
 
 class Relu(Function):
@@ -112,4 +105,4 @@ class Sum(Function):
         return np.sum(tensor.data)
 
     def backward(self, grad):
-        return np.ones_like(self.parents[0].data.shape) * grad
+        return np.ones_like(self.parents[0].data) * grad

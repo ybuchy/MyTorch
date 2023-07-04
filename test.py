@@ -1,48 +1,57 @@
 from tensor import Tensor
+import torch
+from torch import nn
 import numpy as np
+import unittest
 
-d = Tensor([[1, 2], [-2, 4]], requires_grad=True)
+class Test(unittest.TestCase):
+    def test_sum_grad(self):
+        data = np.random.rand(10, 20)
+        my_tensor = Tensor(data, requires_grad=True)
+        torch_tensor = torch.tensor(data, requires_grad=True)
 
-test3 = d.sum()
+        my_tensor.sum().backward()
+        torch_tensor.sum().backward()
 
-test3.backward()
+        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
 
-print(d.grad)
+    def test_dot_grad(self):
+        data_a = np.random.rand(10, 20)
+        data_b = np.random.rand(20, 30)
+        tensor_a = Tensor(data_a, requires_grad=True)
+        torch_a = torch.tensor(data_a, requires_grad=True)
+        tensor_b = Tensor(data_b, requires_grad=True)
+        torch_b = torch.tensor(data_b, requires_grad=True)
 
-a = Tensor([[2, 3, 4], [4, 5, 6]], requires_grad=True)
-b = Tensor([[3, 4], [5, 6], [7, 8]], requires_grad=True)
+        tensor_a.dot(tensor_b).sum().backward()
+        (torch_a @ torch_b).sum().backward()
 
-test = a.dot(b).sum()
+        np.testing.assert_almost_equal(tensor_a.grad, torch_a.grad)
+        np.testing.assert_almost_equal(tensor_b.grad, torch_b.grad)
 
-test.backward()
+    def test_relu_grad(self):
+        data = np.array([[1, -1, 0], [0, 1, -1]], float)
+        my_tensor = Tensor(data, requires_grad=True)
+        torch_tensor = torch.tensor(data, requires_grad=True)
 
-assert a.grad.shape == a.data.shape
-assert b.grad.shape == b.data.shape
+        my_tensor.relu().sum().backward()
+        torch_tensor.relu().sum().backward()        
 
-print(a.grad)
-print(b.grad)
+        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
 
-exit()
+    def test_nn(self):
+        data_ilw = np.random.rand(3, 4) - .5
+        data_olw = np.random.rand(4, 2) - .5
+        data_il = np.random.rand(2, 3) - .5
+        my_input_layer_weights = Tensor(data_ilw, requires_grad=True)
+        torch_input_layer_weights = torch.tensor(data_ilw, requires_grad=True)
+        my_hidden_layer_weights = Tensor(data_olw, requires_grad=True)
+        torch_hidden_layer_weights = torch.tensor(data_olw, requires_grad=True)
 
-c = Tensor([1, -1], requires_grad=True)
+        # redo with nn.linear?
+        Tensor(data_il).dot(my_input_layer_weights).relu().dot(my_hidden_layer_weights).sum().backward()
+        a = (torch.tensor(data_il) @ torch_input_layer_weights).relu()
+        (a @ torch_hidden_layer_weights).sum().backward()
 
-test2 = c.relu().sum()
-
-test2.backward()
-
-assert c.grad.shape == c.data.shape
-
-print(c.grad)
-
-input_layer_weights = Tensor(np.random.rand(3, 4) - .5)
-hidden_layer_weights = Tensor(np.random.rand(4, 2) - .5)
-
-input_layer = Tensor(np.random.rand(2, 3) - .5, requires_grad=True)
-hidden_layer = input_layer.dot(input_layer_weights)
-hidden_layer_new = hidden_layer.relu()
-output_layer = hidden_layer_new.dot(hidden_layer_weights)
-output_layer_new = output_layer.sum()
-
-hidden_layer_new.backward()
-
-print(input_layer.grad)
+        np.testing.assert_almost_equal(my_input_layer_weights.grad, torch_input_layer_weights.grad)
+        np.testing.assert_almost_equal(my_hidden_layer_weights.grad, torch_hidden_layer_weights.grad)
