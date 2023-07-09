@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import Enum, auto
 from typing import Union, Optional
 import numpy as np
 
@@ -20,8 +21,6 @@ class Tensor:
         self.grad = np.zeros_like(self.data)
         self.back_fn = back_fn
 
-
-
     """
     # TODO
     @property
@@ -40,12 +39,11 @@ class Tensor:
             return
         if not self.back_fn.requires_grad: return
 
-        # TODO use enum?
-        if self.back_fn.type == "unary" or self.back_fn.type == "reduce":
+        if self.back_fn.type in [ftype.unary, ftype.reduce]:
             parent = self.back_fn.parents[0]
             grad = self.back_fn.backward(grad)
             parent.backward(grad)
-        elif self.back_fn.type == "binary":
+        elif self.back_fn.type == ftype.binary:
             grad1, grad2 = self.back_fn.backward(grad)
             self.back_fn.parents[0].backward(grad1)
             self.back_fn.parents[1].backward(grad2)
@@ -55,14 +53,22 @@ class Tensor:
     def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
     def relu(self) -> Tensor: return Relu(self).apply()
     def sum(self) -> Tensor: return Sum(self).apply()
+    def softmax_loss(self, labels) -> Tensor: return Softmax_loss(self, labels).apply()
     def __add__(self, rhs: Tensor) -> Tensor: return Add(self, rhs).apply()
     def __matmul__(self, rhs: Tensor) -> Tensor: return self.dot(rhs)
 
     def __str__(self): return f"Tensor({np.array2string(self.data)})\n"
 
+
+class ftype(Enum):
+    unary = auto()
+    binary = auto()
+    reduce = auto()
+
+
 class Function:
-    # TODO make func type Type, enum, ...
-    # type: Func_type
+    type: ftype
+
     def __init__(self, tensor: Tensor, *tensors: Sequence[Tensor]):
         self.parents = [tensor, *tensors]
         self.requires_grad = any(parent.requires_grad for parent in self.parents)
@@ -77,8 +83,9 @@ class Function:
         if not self.requires_grad: return
         return Tensor(self.forward(*self.parents), requires_grad=self.requires_grad, back_fn=self)
 
+
 class Dot(Function):
-    type = "binary"
+    type = ftype.binary
 
     def forward(self, lhs, rhs):
         return lhs.data @ rhs.data
@@ -88,8 +95,9 @@ class Dot(Function):
         scnd = self.parents[0].data.T @ grad
         return (fst, scnd)
 
+
 class Relu(Function):
-    type = "unary"
+    type = ftype.unary
 
     def forward(self, tensor):
         return np.maximum(0, tensor.data)
@@ -98,8 +106,9 @@ class Relu(Function):
         data = self.parents[0].data
         return np.maximum(np.sign(data), np.zeros_like(data)) * grad
 
+
 class Sum(Function):
-    type = "reduce"
+    type = ftype.reduce
 
     def forward(self, tensor):
         return np.sum(tensor.data)

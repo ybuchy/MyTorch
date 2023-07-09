@@ -1,4 +1,5 @@
 from tensor import Tensor
+import loss
 import torch
 from torch import nn
 import numpy as np
@@ -55,3 +56,21 @@ class Test(unittest.TestCase):
 
         np.testing.assert_almost_equal(my_input_layer_weights.grad, torch_input_layer_weights.grad)
         np.testing.assert_almost_equal(my_hidden_layer_weights.grad, torch_hidden_layer_weights.grad)
+
+    def test_softmax_loss(self):
+        my_loss = Softmax_loss()
+        torch_loss = nn.CrossEntropyLoss()
+        data = np.random.rand(20, 20)
+        data2 = np.random.rand(20, 20)
+        my_out = Tensor(data, requires_grad=True)
+        my_labels = Tensor(data2)
+        torch_out = torch.tensor(data, requires_grad=True)
+        torch_labels = torch.tensor(data2)
+
+        loss1 = my_loss(my_out, my_labels)
+        loss2 = torch_loss(torch_out, torch_labels)
+
+        np.testing.assert_almost_equal(loss1.data, loss2.numpy())
+
+    def test_softmax_loss_grad(self):
+        pass
