@@ -53,9 +53,11 @@ class Tensor:
     def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
     def relu(self) -> Tensor: return Relu(self).apply()
     def sum(self) -> Tensor: return Sum(self).apply()
+    def log(self) -> Tensor: return Log(self).apply()
     def softmax_loss(self, labels) -> Tensor: return Softmax_loss(self, labels).apply()
     def __add__(self, rhs: Tensor) -> Tensor: return Add(self, rhs).apply()
     def __matmul__(self, rhs: Tensor) -> Tensor: return self.dot(rhs)
+    def __truediv__(self, rhs: int | float) -> Tensor: return Div(self, rhs).apply()
 
     def __str__(self): return f"Tensor({np.array2string(self.data)})\n"
 
@@ -84,6 +86,29 @@ class Function:
         return Tensor(self.forward(*self.parents), requires_grad=self.requires_grad, back_fn=self)
 
 
+class Add(Function):
+    type = ftype.binary
+
+    def forward(self, lhs, rhs):
+        return lhs.data + rhs.data
+
+    def backward(self, grad):
+        return (grad, grad)
+
+
+class Div(Function):
+    # TODO rly unary? what about tensor / tensor
+    type = ftype.unary
+
+    # TODO const / tensor diff
+    def forward(self, lhs: Tensor, const: int | float):
+        self.const = const
+        return lhs.data / const
+
+    def backward(self, grad):
+        return (1 / self.const) * grad
+
+
 class Dot(Function):
     type = ftype.binary
 
@@ -94,6 +119,17 @@ class Dot(Function):
         fst = grad @ self.parents[1].data.T
         scnd = self.parents[0].data.T @ grad
         return (fst, scnd)
+
+
+class Log(Function):
+    type = ftype.unary
+
+    def forward(self, tensor):
+        self.tensor = tensor
+        return np.log(tensor.data)
+
+    def backward(self, grad):
+        return 1 / self.tensor.data * grad
 
 
 class Relu(Function):

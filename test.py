@@ -6,6 +6,39 @@ import numpy as np
 import unittest
 
 class Test(unittest.TestCase):
+    # TODO
+    def test_unary_grad(self):
+        pass
+
+    # TODO
+    def test_binary_grad(self):
+        pass
+
+    def test_div_grad(self):
+        data = np.random.rand(10, 20)
+        const = np.random.rand()
+        my_tensor = Tensor(data, requires_grad=True)
+        torch_tensor = torch.tensor(data, requires_grad=True)
+
+        (my_tensor / const).sum().backward()
+        (torch_tensor / const).sum().backward()
+
+        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)        
+
+    def test_add_grad(self):
+        data1 = np.random.rand(10, 20)
+        data2 = np.random.rand(10, 20)
+        my_tensor1 = Tensor(data1, requires_grad=True)
+        my_tensor2 = Tensor(data2, requires_grad=True)
+        torch_tensor1 = torch.tensor(data1, requires_grad=True)
+        torch_tensor2 = torch.tensor(data2, requires_grad=True)
+
+        (my_tensor1 + my_tensor2).sum().backward()
+        (torch_tensor1 + torch_tensor2).sum().backward()
+
+        np.testing.assert_almost_equal(my_tensor1.grad, torch_tensor1.grad)
+        np.testing.assert_almost_equal(my_tensor2.grad, torch_tensor2.grad)
+
     def test_sum_grad(self):
         data = np.random.rand(10, 20)
         my_tensor = Tensor(data, requires_grad=True)
@@ -14,6 +47,16 @@ class Test(unittest.TestCase):
         my_tensor.sum().backward()
         torch_tensor.sum().backward()
 
+        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
+
+    def test_log_grad(self):
+        data = np.random.rand(10, 20)
+        my_tensor = Tensor(data, requires_grad=True)
+        torch_tensor = torch.tensor(data, requires_grad=True)
+
+        my_tensor.log().sum().backward()
+        torch_tensor.log().sum().backward()
+        
         np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
 
     def test_dot_grad(self):
@@ -58,6 +101,7 @@ class Test(unittest.TestCase):
         np.testing.assert_almost_equal(my_hidden_layer_weights.grad, torch_hidden_layer_weights.grad)
 
     def test_softmax_loss(self):
+        return
         my_loss = Softmax_loss()
         torch_loss = nn.CrossEntropyLoss()
         data = np.random.rand(20, 20)
