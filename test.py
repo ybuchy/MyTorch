@@ -1,5 +1,5 @@
 from tensor import Tensor
-import loss
+from loss import Softmax_loss
 import torch
 from torch import nn
 import numpy as np
@@ -39,6 +39,20 @@ class Test(unittest.TestCase):
         np.testing.assert_almost_equal(my_tensor1.grad, torch_tensor1.grad)
         np.testing.assert_almost_equal(my_tensor2.grad, torch_tensor2.grad)
 
+    def test_sub_grad(self):
+        data1 = np.random.rand(10, 20)
+        data2 = np.random.rand(10, 20)
+        my_tensor1 = Tensor(data1, requires_grad=True)
+        my_tensor2 = Tensor(data2, requires_grad=True)
+        torch_tensor1 = torch.tensor(data1, requires_grad=True)
+        torch_tensor2 = torch.tensor(data2, requires_grad=True)
+
+        (my_tensor1 - my_tensor2).sum().backward()
+        (torch_tensor1 - torch_tensor2).sum().backward()
+
+        np.testing.assert_almost_equal(my_tensor1.grad, torch_tensor1.grad)
+        np.testing.assert_almost_equal(my_tensor2.grad, torch_tensor2.grad)
+
     def test_sum_grad(self):
         data = np.random.rand(10, 20)
         my_tensor = Tensor(data, requires_grad=True)
@@ -47,6 +61,27 @@ class Test(unittest.TestCase):
         my_tensor.sum().backward()
         torch_tensor.sum().backward()
 
+        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
+
+    def test_amax_grad(self):
+        print("TODO - amax grad")
+        data = np.random.rand(10, 20)        
+        my_tensor = Tensor(data, requires_grad=True)
+        torch_tensor = torch.tensor(data, requires_grad=True)
+
+        torch_tensor.amax(axis=0).sum().backward()
+        torch_tensor.amax(axis=0).sum().backward()
+
+        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
+
+    def test_exp_grad(self):
+        data = np.random.rand(10, 20)
+        my_tensor = Tensor(data, requires_grad=True)
+        torch_tensor = torch.tensor(data, requires_grad=True)
+
+        my_tensor.exp().sum().backward()
+        torch_tensor.exp().sum().backward()
+        
         np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
 
     def test_log_grad(self):

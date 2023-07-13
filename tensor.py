@@ -28,6 +28,10 @@ class Tensor:
         pass
     """
 
+    # TODO
+    def zeros_like():
+        pass
+
     # REDO ~ this is using much more memory than it needs - use toposort for that!
     def backward(self, grad: Optional[Tensor]=None) -> None:
         if grad is None:
@@ -53,9 +57,13 @@ class Tensor:
     def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
     def relu(self) -> Tensor: return Relu(self).apply()
     def sum(self) -> Tensor: return Sum(self).apply()
+    def exp(self) -> Tensor: return Exp(self).apply()
     def log(self) -> Tensor: return Log(self).apply()
+    def amax(self, axis=None) -> Tensor: return Amax(self, axis).apply()
     def softmax_loss(self, labels) -> Tensor: return Softmax_loss(self, labels).apply()
     def __add__(self, rhs: Tensor) -> Tensor: return Add(self, rhs).apply()
+    def __neg__(self) -> Tensor: return Neg(self).apply()
+    def __sub__(self, rhs: Tensor) -> Tensor: return Add(self, -rhs).apply()
     def __matmul__(self, rhs: Tensor) -> Tensor: return self.dot(rhs)
     def __truediv__(self, rhs: int | float) -> Tensor: return Div(self, rhs).apply()
 
@@ -96,6 +104,16 @@ class Add(Function):
         return (grad, grad)
 
 
+class Neg(Function):
+    type = ftype.unary
+
+    def forward(self, tensor):
+        return -tensor.data
+
+    def backward(self, grad):
+        return -grad
+
+
 class Div(Function):
     # TODO rly unary? what about tensor / tensor
     type = ftype.unary
@@ -119,6 +137,28 @@ class Dot(Function):
         fst = grad @ self.parents[1].data.T
         scnd = self.parents[0].data.T @ grad
         return (fst, scnd)
+
+
+class Amax(Function):
+    type = ftype.reduce
+
+    def forward(self, tensor, axis):
+        return np.amax(tensor.data, axis)
+
+    # TODO
+    def backward(self):
+        pass
+
+
+class Exp(Function):
+    type = ftype.unary
+
+    def forward(self, tensor):
+        self.exp = np.exp(tensor.data)
+        return self.exp
+
+    def backward(self, grad):
+        return grad * self.exp
 
 
 class Log(Function):
