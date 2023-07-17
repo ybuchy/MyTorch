@@ -9,9 +9,10 @@ class Softmax_loss():
         m = tensor - tensor.amax(axis=0)
         e_m = m.exp()
         self.activated = e_m / e_m.sum(axis=0)
-        diag = -(labels.T @ self.activated.log()).diag()
-        return sum(diag) / diag.size
+        # TODO: (testing)
+        idk = -(labels * self.activated.log()).sum(axis=1)
+        return sum(idk) / idk.size
 
     def backward(self):
         grad = self.activated - self.labels
-        pass
+        self.tensor.backward(grad)

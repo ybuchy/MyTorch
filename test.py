@@ -64,15 +64,33 @@ class Test(unittest.TestCase):
         np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
 
     def test_amax_grad(self):
-        print("TODO - amax grad")
-        data = np.random.rand(10, 20)        
-        my_tensor = Tensor(data, requires_grad=True)
-        torch_tensor = torch.tensor(data, requires_grad=True)
+        data1 = np.array([[1, 6, 3], [4, 6, 6]], float)
+        data2 = np.array([[1, 5, 3], [4, 5, 6]], float)
+        data3 = np.array([[1, 2, 3], [4, 5, 6]], float)
+        data4 = np.random.rand(20, 30, 40, 50)
+        my_tensor1 = Tensor(data1, requires_grad=True)
+        torch_tensor1 = torch.tensor(data1, requires_grad=True)
+        my_tensor2 = Tensor(data2, requires_grad=True)
+        torch_tensor2 = torch.tensor(data2, requires_grad=True)
+        my_tensor3 = Tensor(data3, requires_grad=True)
+        torch_tensor3 = torch.tensor(data3, requires_grad=True)
+        my_tensor4 = Tensor(data4, requires_grad=True)
+        torch_tensor4 = torch.tensor(data4, requires_grad=True)
 
-        torch_tensor.amax(axis=0).sum().backward()
-        torch_tensor.amax(axis=0).sum().backward()
 
-        np.testing.assert_almost_equal(my_tensor.grad, torch_tensor.grad)
+        torch_tensor1.amax().sum().backward()
+        my_tensor1.amax().sum().backward()
+        torch_tensor2.amax(axis=0).sum().backward()
+        my_tensor2.amax(axis=0).sum().backward()
+        torch_tensor3.amax(axis=1).sum().backward()
+        my_tensor3.amax(axis=1).sum().backward()
+        torch_tensor4.amax(axis=2).sum().backward()
+        my_tensor4.amax(axis=2).sum().backward()
+
+        np.testing.assert_almost_equal(my_tensor1.grad, torch_tensor1.grad)
+        np.testing.assert_almost_equal(my_tensor2.grad, torch_tensor2.grad)
+        np.testing.assert_almost_equal(my_tensor3.grad, torch_tensor3.grad)
+        np.testing.assert_almost_equal(my_tensor4.grad, torch_tensor4.grad)
 
     def test_exp_grad(self):
         data = np.random.rand(10, 20)
@@ -136,7 +154,6 @@ class Test(unittest.TestCase):
         np.testing.assert_almost_equal(my_hidden_layer_weights.grad, torch_hidden_layer_weights.grad)
 
     def test_softmax_loss(self):
-        return
         my_loss = Softmax_loss()
         torch_loss = nn.CrossEntropyLoss()
         data = np.random.rand(20, 20)

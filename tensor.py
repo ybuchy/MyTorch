@@ -21,13 +21,6 @@ class Tensor:
         self.grad = np.zeros_like(self.data)
         self.back_fn = back_fn
 
-    """
-    # TODO
-    @property
-    def grad_tracked(self):
-        pass
-    """
-
     # TODO
     def zeros_like():
         pass
@@ -54,6 +47,8 @@ class Tensor:
 
         
     # hlops
+    @property
+    def T(self) -> Tensor: return Transpose(self).apply()
     def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
     def relu(self) -> Tensor: return Relu(self).apply()
     def sum(self) -> Tensor: return Sum(self).apply()
@@ -90,7 +85,6 @@ class Function:
         raise NotImplementedError(f"backward function of {type(self)} not implemented")
 
     def apply(self):
-        if not self.requires_grad: return
         return Tensor(self.forward(*self.parents), requires_grad=self.requires_grad, back_fn=self)
 
 
@@ -127,6 +121,16 @@ class Div(Function):
         return (1 / self.const) * grad
 
 
+class Transpose(Function):
+    type = ftype.unary
+
+    def forward(self, tensor):
+        return tensor.data.T
+
+    def backward(self, grad):
+        return grad.T
+
+
 class Dot(Function):
     type = ftype.binary
 
@@ -142,12 +146,46 @@ class Dot(Function):
 class Amax(Function):
     type = ftype.reduce
 
-    def forward(self, tensor, axis):
-        return np.amax(tensor.data, axis)
+    def forward(self, tensor, axis=None):
+        self.tensor = tensor
+        self.axis = axis
+        self.m = np.amax(tensor.data, axis)
+        return self.m
 
-    # TODO
-    def backward(self):
-        pass
+    # TODO (not readable at all, way too slow)
+    def backward(self, grad):
+        import time
+        local_grad = np.zeros_like(self.tensor.data)
+        if self.axis is None:
+            s = 0
+            it = np.nditer(self.tensor.data, flags=['multi_index'])
+            for el in it:
+                if el == self.m:
+                    local_grad[it.multi_index] += 1
+                    s += 1
+            local_grad /= s
+        else:
+            a = time.monotonic()
+            nptensor = np.swapaxes(self.tensor.data, self.axis, -1)
+            indices = np.zeros_like(nptensor)
+            # TODO IDEA: Is it faster to push do a element-wise translation to push the max to 1 and then set everything < 1 to 0? (still have branching but no (only less?) for loops)
+            it = np.nditer(self.m, flags=['multi_index'])
+            # redo _ and use it
+            for _ in it:
+                for ind, el in enumerate(nptensor[it.multi_index]):
+                    if el == self.m[it.multi_index]:
+                        indices[*it.multi_index, ind] += 1
+            # useless to do zeros_like at the top
+            b = time.monotonic()
+            local_grad = np.swapaxes(indices, self.axis, -1)
+            local_grad /= np.sum(local_grad, self.axis, keepdims=True)
+            c = time.monotonic()
+            grad = grad.reshape(*grad.shape, 1)
+            axis_list = list(range(self.axis, len(grad.shape)))
+            grad = np.moveaxis(grad, axis_list, axis_list[1:] + [self.axis])
+            d = time.monotonic()
+            print(f"{b-a:.5f}, {c-b:.5f}, {d-c:.5f}")
+        return local_grad * grad
 
 
 class Exp(Function):
@@ -158,7 +196,7 @@ class Exp(Function):
         return self.exp
 
     def backward(self, grad):
-        return grad * self.exp
+        return self.exp * grad
 
 
 class Log(Function):
