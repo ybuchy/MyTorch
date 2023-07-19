@@ -3,12 +3,14 @@ from enum import Enum, auto
 from typing import Union, Optional
 import numpy as np
 
+const: TypeAlias = int | float | np.int64 | np.int32 | np.float32 | np.float64
+
 
 class Tensor:
     def __init__(self, data: Union[int, float, list, np.ndarray], requires_grad: Optional[bool]=None, back_fn: Function=None):
         self.requires_grad = requires_grad
 
-        if isinstance(data, (int, float, np.int64, np.int32, np.float32, np.float64)):
+        if isinstance(data, const):
             self.data = np.array([data])
 
         elif isinstance(data, list):
@@ -51,16 +53,16 @@ class Tensor:
     def T(self) -> Tensor: return Transpose(self).apply()
     def dot(self, tensor: Tensor) -> Tensor: return Dot(self, tensor).apply()
     def relu(self) -> Tensor: return Relu(self).apply()
-    def sum(self) -> Tensor: return Sum(self).apply()
+    def sum(self, axis=None) -> Tensor: return Sum(self, axis).apply()
     def exp(self) -> Tensor: return Exp(self).apply()
     def log(self) -> Tensor: return Log(self).apply()
     def amax(self, axis=None) -> Tensor: return Amax(self, axis).apply()
-    def softmax_loss(self, labels) -> Tensor: return Softmax_loss(self, labels).apply()
     def __add__(self, rhs: Tensor) -> Tensor: return Add(self, rhs).apply()
     def __neg__(self) -> Tensor: return Neg(self).apply()
     def __sub__(self, rhs: Tensor) -> Tensor: return Add(self, -rhs).apply()
     def __matmul__(self, rhs: Tensor) -> Tensor: return self.dot(rhs)
-    def __truediv__(self, rhs: int | float) -> Tensor: return Div(self, rhs).apply()
+    # TODO const
+    def __truediv__(self, rhs: const | Tensor) -> Tensor: return Div_const(self, rhs).apply() if isinstance(rhs, const) else Div_tensor(self, rhs).apply()
 
     def __str__(self): return f"Tensor({np.array2string(self.data)})\n"
 
@@ -108,17 +110,32 @@ class Neg(Function):
         return -grad
 
 
-class Div(Function):
-    # TODO rly unary? what about tensor / tensor
+class Div_const(Function):
+    # unary as in only one tensor
     type = ftype.unary
 
-    # TODO const / tensor diff
-    def forward(self, lhs: Tensor, const: int | float):
+    def forward(self, lhs: Tensor, const: int | float | np.int32 | np.int64 |
+                np.float32 | np.float64):
+        assert type(const) in (int, float, np.int32, np.int64, np.float32, np.float64)
         self.const = const
+        print(type(lhs.data), type(const))
         return lhs.data / const
 
     def backward(self, grad):
         return (1 / self.const) * grad
+
+
+# TODO
+class Div_tensor(Function):
+    # unary as in only one tensor
+    type = ftype.unary
+
+    def forward(self, lhs: Tensor, rhs: Tensor):
+        assert type(const) is Tensor
+        return None
+
+    def backward(self, grad):
+        return None
 
 
 class Transpose(Function):
@@ -154,21 +171,15 @@ class Amax(Function):
 
     # TODO (not readable at all, way too slow)
     def backward(self, grad):
-        import time
         local_grad = np.zeros_like(self.tensor.data)
         if self.axis is None:
-            s = 0
-            it = np.nditer(self.tensor.data, flags=['multi_index'])
-            for el in it:
-                if el == self.m:
-                    local_grad[it.multi_index] += 1
-                    s += 1
-            local_grad /= s
+            # Get indices of the max items, then * 1. to replace True with 1. and False with 0.
+            local_grad += np.equal(self.tensor.data, self.m) * 1.
+            local_grad /= local_grad.sum()
         else:
-            a = time.monotonic()
             nptensor = np.swapaxes(self.tensor.data, self.axis, -1)
             indices = np.zeros_like(nptensor)
-            # TODO IDEA: Is it faster to push do a element-wise translation to push the max to 1 and then set everything < 1 to 0? (still have branching but no (only less?) for loops)
+            # TODO IDEA: Is it faster to do a element-wise translation to push the max to 1 and then set everything < 1 to 0? (still have branching but no (only less?) for loops)
             it = np.nditer(self.m, flags=['multi_index'])
             # redo _ and use it
             for _ in it:
@@ -176,15 +187,11 @@ class Amax(Function):
                     if el == self.m[it.multi_index]:
                         indices[*it.multi_index, ind] += 1
             # useless to do zeros_like at the top
-            b = time.monotonic()
             local_grad = np.swapaxes(indices, self.axis, -1)
             local_grad /= np.sum(local_grad, self.axis, keepdims=True)
-            c = time.monotonic()
             grad = grad.reshape(*grad.shape, 1)
             axis_list = list(range(self.axis, len(grad.shape)))
             grad = np.moveaxis(grad, axis_list, axis_list[1:] + [self.axis])
-            d = time.monotonic()
-            print(f"{b-a:.5f}, {c-b:.5f}, {d-c:.5f}")
         return local_grad * grad
 
 
@@ -224,8 +231,13 @@ class Relu(Function):
 class Sum(Function):
     type = ftype.reduce
 
-    def forward(self, tensor):
-        return np.sum(tensor.data)
+    def forward(self, tensor, axis=None):
+        self.axis = axis
+        return np.sum(tensor.data, axis=axis)
 
     def backward(self, grad):
+        if self.axis is not None:
+            grad = grad.reshape(*grad.shape, 1)
+            axis_list = list(range(self.axis, len(grad.shape)))
+            grad = np.moveaxis(grad, axis_list, axis_list[1:] + [self.axis])
         return np.ones_like(self.parents[0].data) * grad
